@@ -11,6 +11,7 @@ runs:
 
     - name: Redirect api.segment.io to localhost
       id: redirect-segment
+      shell: bash
       run: |
         echo '127.0.0.2 api.segment.io' | sudo tee -a /etc/hosts
         cat /etc/hosts
@@ -35,6 +36,7 @@ runs:
 
     - name: Copy Desktop install settings in /Library
       if: steps.cache-docker-desktop-install-settings.outputs.cache-hit == 'true'
+      shell: bash
       run: |
         echo "ls ./cache/desktopInstallSettings/"
         ls ./cache/desktopInstallSettings/
@@ -45,6 +47,7 @@ runs:
 
     - name: Install Docker Desktop dmg
       if: steps.cache-docker-desktop-install-settings.outputs.cache-hit != 'true'
+      shell: bash
       run: |
         sw_vers
         mkdir ./temp
@@ -67,6 +70,7 @@ runs:
 
     - name: Install Docker Desktop app
       timeout-minutes: 5
+      shell: bash
       run: |
         sudo mkdir /Library/PrivilegedHelperTools
         sudo /Applications/Docker.app/Contents/MacOS/install config --user runner
@@ -77,6 +81,7 @@ runs:
 
     - name: Wait for Docker to be up and running
       timeout-minutes: 5
+      shell: bash
       run: |
         until docker ps; do echo "ps failed, sleep 10 s and try again"; sleep 10; done
         echo "Docker started and ready"
