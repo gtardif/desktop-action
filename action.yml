@@ -1,23 +1,84 @@
 name: "Docker Desktop action"
 description: "Start Docker Desktop on a GHA node"
 inputs:
-  who-to-greet: # id of input
-    description: "Who to greet"
-    required: false
-    default: "World"
 outputs:
-  random-number:
-    description: "Random number"
-    value: ${{ steps.random-number-generator.outputs.random-number }}
 runs:
   using: "composite"
   steps:
-    - run: echo Hello ${{ inputs.who-to-greet }}.
+    - name: Get Date
+      id: get-date
+      run: |
+        echo "::set-output name=date::$(/bin/date -u "+%Y%m%d")"
       shell: bash
-    - id: random-number-generator
-      run: echo "random-number=$(echo $RANDOM)" >> $GITHUB_OUTPUT
-      shell: bash
-    - run: echo "${{ github.action_path }}" >> $GITHUB_PATH
-      shell: bash
-    - run: goodbye.sh
-      shell: bash
+
+    - name: Redirect api.segment.io to localhost
+      id: redirect-segment
+      run: |
+        echo '127.0.0.2 api.segment.io' | sudo tee -a /etc/hosts
+        cat /etc/hosts
+
+    - name: Get Docker app cache
+      id: cache-docker-desktop-app
+      uses: actions/cache@v3
+      env:
+        cache-name: cache-docker-desktop-app
+      with:
+        path: /Applications/Docker.app
+        key: docker-desktop-app-mac-amd64-${{ steps.get-date.outputs.date }}
+
+    - name: Get Docker install settings cache
+      id: cache-docker-desktop-install-settings
+      uses: actions/cache@v3
+      env:
+        cache-name: cache-docker-desktop-install-settings
+      with:
+        path: ./cache/desktopInstallSettings/
+        key: docker-desktop-install-settings-mac-${{ steps.get-date.outputs.date }}
+
+    - name: Copy Desktop install settings in /Library
+      if: steps.cache-docker-desktop-install-settings.outputs.cache-hit == 'true'
+      run: |
+        echo "ls ./cache/desktopInstallSettings/"
+        ls ./cache/desktopInstallSettings/
+        sudo mkdir -p "/Library/Application Support/com.docker.docker"
+        sudo cp ./cache/desktopInstallSettings/* "/Library/Application Support/com.docker.docker/"
+        echo "/Library/Application Support/com.docker.docker/"
+        ls "/Library/Application Support/com.docker.docker/"
+
+    - name: Install Docker Desktop dmg
+      if: steps.cache-docker-desktop-install-settings.outputs.cache-hit != 'true'
+      run: |
+        sw_vers
+        mkdir ./temp
+        mkdir ./mount
+        wget -q -O ./temp/DockerDesktop.dmg https://desktop-stage.docker.com/mac/main/amd64/Docker.dmg
+        /usr/bin/hdiutil attach -noverify ./temp/DockerDesktop.dmg -mountpoint ./mount/desktop -nobrowse
+        echo "dmg mounted"
+        sudo ./mount/desktop/Docker.app/Contents/MacOS/install --accept-license
+        echo "dmg installed"
+
+        echo "ls /Library/Application Support/com.docker.docker"
+        ls "/Library/Application Support/com.docker.docker" || true
+        mkdir -p ./cache/desktopInstallSettings
+        cp "/Library/Application Support/com.docker.docker/"* ./cache/desktopInstallSettings/
+        echo "ls ./cache/desktopInstallSettings/"
+        ls ./cache/desktopInstallSettings/ || true
+
+        /usr/bin/hdiutil detach ./mount/desktop
+        echo "dmg unmounted"
+
+    - name: Install Docker Desktop app
+      timeout-minutes: 5
+      run: |
+        sudo mkdir /Library/PrivilegedHelperTools
+        sudo /Applications/Docker.app/Contents/MacOS/install config --user runner
+        sudo /Applications/Docker.app/Contents/MacOS/install vmnetd
+        echo "app installed"
+        /usr/bin/open /Applications/Docker.app --args --unattended --add-host-docker-internal-registry
+        echo "Docker starting..."
+
+    - name: Wait for Docker to be up and running
+      timeout-minutes: 5
+      run: |
+        until docker ps; do echo "ps failed, sleep 10 s and try again"; sleep 10; done
+        echo "Docker started and ready"
