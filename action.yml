@@ -69,7 +69,6 @@ runs:
         echo "dmg unmounted"
 
     - name: Install Docker Desktop app
-      timeout-minutes: 5
       shell: bash
       run: |
         sudo mkdir /Library/PrivilegedHelperTools
@@ -80,7 +79,6 @@ runs:
         echo "Docker starting..."
 
     - name: Wait for Docker to be up and running
-      timeout-minutes: 5
       shell: bash
       run: |
         until docker ps; do echo "ps failed, sleep 10 s and try again"; sleep 10; done
