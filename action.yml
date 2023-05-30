@@ -1,7 +1,5 @@
 name: "Docker Desktop action"
 description: "Start Docker Desktop on a GHA node"
-inputs:
-outputs:
 runs:
   using: "composite"
   steps:
